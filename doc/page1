@@ -1,0 +1,330 @@
+硬：
+1. java 基础
+  a> 类型，集合
+  b> 多线程，并发，锁
+  c> jvm  垃圾回收
+  d> 类加载
+  e> io
+
+2. 数据库
+
+3. 缓存 消息中间件
+
+4. dubbo zk netty spring ...开源框架
+
+4. linux 操作系统
+
+5. 数据结构 算法
+
+软：
+
+1. 系统设计
+
+2. 项目经历
+
+3. 性能优化
+
+
+
+===========
+
+
+
+b+tree 比 b-tree更适合做索引
+
+b-tree 节点包括数据和索引key和指针， 节点是按照page大小设计的，节点大小就固定了 ， 每个节点上key的数量受限于data的大小
+b+tree 非叶子节点只有索引key和指针， 单个节点包含的key的数量比b-tree数量要多， io 的次数会减少 性能更好
+
+
+wait / notify / notifyall
+
+objectMonitor 里包括 objectWaiter 和 EntryList 两个队列
+
+ObjectWaiter 是 调用wait（）的线程，状态为wait
+EntryList 是未获取到锁，没有进入静态代码块的 线程，状态是Blocked
+
+在调用wait()方法后 ，即使没有退出静态代码块， 当前线程也会放弃锁的持有 ， 其他EntryList 里的线程可以开始争抢
+调用Notify()方法后， 是把objectWaiter的 线程放到EntryList 里， 状态由wait 变成 blocked ， 当当前线程退出静态代码块后 ， EntryList里的线程开始争抢
+
+
+=====
+kafka保证消息不丢失 不重复消费
+不丢失
+1.生产者 重试 同步ack
+2.broker 同步刷磁盘,同步复制副本数量为大于等于1
+3.消费者 关闭自动commit,消费成功在commit
+
+kafka 的存储结构是 一个topic 对应多个partation , 每个partation对应一个文件，当topic数量较多时， 磁盘io 会成功瓶颈 影响吞吐量
+rocketmq 是多有的消息都写到一个数据文件上，当数据文件达到指定的大小时，生成新的文件， 所以topic数量对吞吐量的影响较小
+
+
+kafka和rocketmq 之所以有较高的吞吐量
+1. broker 端  文件顺序写， 不断的往文件的尾部追加消息，记录消息在文件的offset, 顺序读写减少了磁盘磁头寻道的时间
+2. 内存映射 mmap 也称之为零拷贝，减少两次内核和用户态的切换和数据的复制
+3. topic 可以分为多个分片 partation，每个partition分为多个segment段，减少竞争，提高并行处理的能力
+4. 批量发送 - 生产者客户端可以实现消息先缓存在客户端内存，达到一定数量或时间 提交一次发送请求
+
+
+
+kafka持久化
+1.磁盘顺序写追加的形式，很少使用内存 充分利用pagecache
+
+
+
+顺序消费
+1.同一个partation
+2.版本号 乐观锁
+
+===================
+
+多路复用
+多个请求复用一个线程扫描通道上的事件
+
+
+
+NIO reactor 模型
+单个selector ：
+			 interface ChannelHandler{
+			      void channelReadable(Channel channel);
+			      void channelWritable(Channel channel);
+			   }
+			   class Channel{
+			     Socket socket;
+			     Event event;//读，写或者连接
+			   }
+
+			   //IO线程主循环:
+			   class IoThread extends Thread{
+			   public void run(){
+			   Channel channel;
+			   while(channel=Selector.select()){//选择就绪的事件和对应的连接
+			      if(channel.event==accept){
+			         registerNewChannelHandler(channel);//如果是新连接，则注册一个新的读写处理器
+			      }
+			      if(channel.event==write){
+			         getChannelHandler(channel).channelWritable(channel);//如果可以写，则执行写事件
+			      }
+			      if(channel.event==read){
+			          getChannelHandler(channel).channelReadable(channel);//如果可以读，则执行读事件
+			      }
+			    }
+			   }
+			   Map<Channel，ChannelHandler> handlerMap;//所有channel的对应事件处理器
+			  }
+其中Selector上可以注册感兴趣的事件， 如果想用多Selector 则可以分开注册事件， 通常会把 Accept 建立链接  和  read/write分开
+因为建立新的链接，tcp是一个双向的过程  1.耗时，2.如果故意构造半连接会影响连接的创建以至于影响整体的性能和吞吐率
+
+
+
+==============================
+
+dubbo  nio  / 同步 和异步
+nio 双工通讯
+
+同步方式:
+client 一次调用可分解为  1. socket 发请求（写） ，2. socket 拿到结果（读）
+对于服务端 1.收到请求（读事件），处理结束 注册写事件 2. 返回响应  写事件
+
+异步方式:
+客户端发完请求不用阻塞到拿结果，可以注册一个future 从future get返回结果
+
+
+
+swap 使用率高，可能会增大gc时间
+0. top命令查看 内存使用情况
+1. gc频率 和时间
+2. 接口响应时间
+3. 请求数量
+4.活跃线程数
+
+
+
+
+	1bit 偏向状态 	2bit锁标记位
+
+无锁	0				01
+偏向	1				01
+轻量					00
+重量					10
+gc 						11
+
+
+偏向
+
+check(对象头记录的线程id是否是自己)
+if(为空)
+    check(偏向标记)
+    if （是）
+      cas对象头记录自己线程号
+    if (不是)
+       此时有竞争
+       等持有线程执行完 锁升级为轻量
+
+
+ if (是自己)
+   自己已经持有锁， 执行
+
+
+轻量
+
+cas 设置对象头为自己
+成功则执行，不成功就自旋几次， 自旋多次还不成功
+锁升级重量级锁
+
+
+重量级锁
+
+对象头维护一个entry set
+线程竞争锁成功则 执行， 失败状态变成blocked ，放到entry set ，等待持有者退出同步块再次竞争
+再次竞争有公平和非平公， 公平就从队列里先到先得， 非公平则先抢一次，成功则执行，不成功放到队列
+
+
+
+
+=====
+
+
+jvm内存模型
+按照线程私有和共享来划分
+1. 私有  栈，程序计数器，native栈
+2. 公有	 堆，方法区
+
+方法区:用来存放加载的字节码文件，常量，静态常量，
+堆：jvm大块的区域，用来分配对象
+栈：线程栈，由一个一个栈帧组成，类似节点账，栈帧包括局部变量表，操作栈，方法出口地址
+native栈： native方法
+程序计数器：记录当前线程正在执行的字节码的行信息
+
+
+====
+一次younggc的耗时分为 扫描新生代，复制存活对象到 s区
+复制的时间原大于扫描的时间，
+对新生代的gc优化
+目的降低复制所需要的耗时， 存活对象少了 复制需要的时间就少了
+
+
+==
+cms
+1. 初始标记：只标记直接关联的对象，stw  时间较快
+2. 并发标记：标记上个阶段的对象关联的一些对象  并发执行，时间相对较长
+3. 重新标记：扫描全局范围的对象，标记 stw   --- 这个阶段的时间主要耗在扫描的范围比较大如果执行之前先执行一次younggc，
+			 可降低扫描范围 起到优化作用
+4. 并发执行： 清理， 不压缩整理， 产生碎片  -- 可以指定经过几次回收以后整理一次，减少碎片化
+
+
+cms 老年代 由并发回收变成 full gc的原因有
+1. 方法区不够
+2. 在老年代分配对象或新生代晋升到老年代 空间不足
+3. 手动触发full gc 有System.gc 和 jmap -histo:live pid
+
+
+
+2600 =  2g + 600m
+2g = 1/3 新生 + 2/3老年
+600m = 方法区 +  线程数量 + 对外内存
+
+
+
+
+===================
+a 持有 threadlocal
+threadlocal ;
+thread.threadlocalMap
+key： threadlocal , value : T
+key 为 weakrefrence
+
+当gc时 ， 如果a 不可达，a会被回收掉， threadlocal 只有thread.threadlocalmap持有，
+如果key为强引用, threadlocal 就不会被回收，因为他的生命周期和thread一样长
+如果key为弱引用，threadlocal 就会被回收，value 就没法访问到 会造成内存泄露
+不过thradlcoal 在 put和remove的时候会检查 key是否为空来清理一次 避免泄露
+
+
+
+=====
+
+公平锁：
+先看锁的状态是否有人持有
+没有持有，在看有没有人排在自己前面
+如果前面有就把自己放进队列，前面没有尝试一次获取，获取成功计数执行，获取失败放进队列
+
+如果有人持有锁看是否是自己， 如果是自己就重入计数
+不是自己就放进等待队列
+
+
+
+非公平：
+上来先尝试一次获取，获取成功就计数执行
+不成功再走公平的方式
+
+
+
+=============================
+
+redis 主从复制
+
+1.从节点配置
+2.链接建立过程
+3.从节点ping 试探性
+4.master记录slave的ip端口
+5.master开始同步数据，同步数据可以指定延迟情况 ， tcp_nodelay : 默认是不延迟 有命令就发送，
+另一种情况是 tcp积累一定的频率发送一次
+
+master同步数据分为全量复制和部分复制
+
+5.1 全量复制
+master接到全量复制命令后 开启子进程后台生成rdb文件，并维护一个复制缓冲区，把此刻开始的写命令放到复制缓冲区 防止复制阶段新数据丢失
+master rdb文件准备好后 把文件发送给slave , slave清空自己的旧的数据，载入rdb文件 ，slave从清空到载入文件， 这个过程是阻塞的 不接受外部命令请求
+
+
+5.2 部分复制
+slave和master都维护一个offset, 表示master slave复制的一个进度 ，master还有一个复制缓冲区lru 记录最近master的写命令及操作的数据的offset
+slave 会带着runid 和 offset来请求数据同步， 如果offset在缓冲区内存在，代表差异不是很大 可以用部分复制， 从offset开始复制
+如果offset不在缓冲区存在，这时数据差异就较大了 就要从头全量复制了
+
+==============================
+
+redis 持久化方式 rdb aof
+
+rdb 可以配置save m （时间） n （变化数量）, 有一个定时任务 100毫秒检查一次  m时间内发生了n条数据的变化则bgsave 生成rdb文件
+	执行bgsave命令 会fork一个子进程映射主进程的内存 做生成文件的事，fork子进程过程中是阻塞的 没法接受外部命令
+
+aof 开启后 每条写的命令都会被记录到 aof_buf里， 然后调用write函数 写到磁盘， 因为现在操作系统都做了页的缓存 都会先写到页缓存里
+ 一旦机器断电 没有刷到磁盘的数据就会丢失 redis 提供了集中刷磁盘的策略， 1.不刷磁盘， 由操作系统控制  2.总刷磁盘 每执行一次就刷一次
+ 磁盘的频繁io 会影响性能 3. 每秒刷一次磁盘， 属于折中方案 开启一个异步线程 后台执行刷磁盘操作
+
+
+
+=======================
+
+1. 分销
+网关 - 认证，流控，路由，
+供给 - 房态 价格 缓存 ， 消息回调  缓存大小 10几g + 500万 key 酒店+产品 hash 日期 value  价格，房态json 10几个字段
+订单 - 重试 规则
+
+
+=====
+1.项目
+2.针对项目分库想法
+3.如何评估系统的容量，如何定位系统的瓶颈
+
+4.多线程并发问题解决方式
+5.同步关键字的实现
+6.volatile的原理
+
+
+
+=====
+redis 分布式限流， 令牌桶方式
+
+qps 限制 100
+1. 桶的大小为100 ，
+2. 每100毫秒放10个令牌进去， 有请求就拿出令牌 令牌为空则拒绝
+3. 当桶满了 就暂停放入
+
+
+
+
+=====
+
+1. 评估系统的性能瓶颈
+2. 个人发展路径
