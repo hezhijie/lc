@@ -1,0 +1,15 @@
+HeadIndex:{
+	int maxLevel;
+	IndexNode index;
+}
+
+IndexNode:{
+	Node node;
+	IndexNode right;
+	IndexNode down;
+}
+
+Node:{
+	V value;
+	Node next;
+}
