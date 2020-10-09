@@ -9,6 +9,9 @@ public class LinkedNode {
     public LinkedNode next;
 
     public LinkedNode(){}
+    public LinkedNode(int value){
+        this.value = value;
+    }
 
     public LinkedNode(int value,LinkedNode next) {
         this.value = value;
