@@ -1,0 +1,24 @@
+
+    private Object object = new Object();
+	public synchronized void put() {
+		synchronized (object) {
+			//if (符合条件) {
+			//  notify ();
+			// }
+		}
+	}
+	public synchronized void take() {
+		synchronized (object) {
+//			if (符合条件){
+
+//			}  else {
+//			  wait();
+//			}
+		}
+	}
+	/**
+	 *  t1 进入take后，t2 开始blocked 进入app的 entry_set
+	 *  t1 接着进入了 else 分支， wait后 释放 app锁， 没有释放object锁 , t1 -> app.waitObject
+	 *  此时 t2 从blocked状态 就绪 拿到app锁 进入put
+	 *  开始 获取object 锁 ，此时object 被t1持有未释放 开始blocked, t2 -> object.entry_set
+	 */
